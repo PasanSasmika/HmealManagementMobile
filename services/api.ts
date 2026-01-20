@@ -70,3 +70,15 @@ export const respondToRequest = async (bookingId: string, action: 'accept' | 're
     throw error.response?.data?.message || 'Response failed';
   }
 };
+
+export const verifyMealOTP = async (bookingId: string, otp: string, token: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/api/meal/verify-otp`, 
+      { bookingId, otp }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'OTP Verification failed';
+  }
+};

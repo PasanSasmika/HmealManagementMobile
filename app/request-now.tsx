@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
-import { getTodayMeals, requestMealAction } from '@/services/api';
+import { getTodayMeals, requestMealAction, verifyMealOTP } from '@/services/api';
 import { socket } from '@/services/socket';
 
 const MEAL_CONFIG = [
@@ -16,39 +16,42 @@ const MEAL_CONFIG = [
 export default function RequestNowScreen() {
   const router = useRouter();
   const { token, user } = useAuthStore();
+  
+  // Data States
   const [loading, setLoading] = useState(true);
-  const [requestLoading, setRequestLoading] = useState(false);
   const [todayBookings, setTodayBookings] = useState<any[]>([]);
+  
+  // UI States
   const [selectedMeal, setSelectedMeal] = useState<string | null>(null);
+  const [requestLoading, setRequestLoading] = useState(false);
+  
+  // OTP Workflow States
+  const [isOtpView, setIsOtpView] = useState(false);
+  const [receivedOtp, setReceivedOtp] = useState<string>(''); // OTP from Socket
+  const [enteredOtp, setEnteredOtp] = useState<string>('');   // OTP user types
+  const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
 
-  // 1. Initial Data Fetch & Socket Setup
   useEffect(() => {
     fetchMeals();
 
-    // Connect to Socket
     if (!socket.connected) socket.connect();
-    if (user?.id) socket.emit('join', user.id); // Join private room to receive OTP
+    if (user?.id) socket.emit('join', user.id);
 
-    // Listener: Request Accepted (Receive OTP)
+    // Listener: Request Accepted -> Switch to OTP View
     const onAccepted = (data: any) => {
-      setRequestLoading(false); // Stop button loading
-      Alert.alert(
-        "Request Accepted! ✅", 
-        `Your OTP is: ${data.otp}\n\nPlease show this code to the canteen.`,
-        [{ text: "OK", onPress: () => fetchMeals() }] // Refresh list to update UI
-      );
+      setRequestLoading(false);
+      setReceivedOtp(data.otp); // Store the OTP from Canteen
+      setIsOtpView(true);       // Switch UI to OTP mode
     };
 
-    // Listener: Request Rejected
     const onRejected = (data: any) => {
-      setRequestLoading(false); // Stop button loading
+      setRequestLoading(false);
       Alert.alert("Request Rejected ❌", data.message || "Canteen denied the request.");
     };
 
     socket.on('meal_accepted', onAccepted);
     socket.on('meal_rejected', onRejected);
 
-    // Cleanup listeners on unmount
     return () => {
       socket.off('meal_accepted', onAccepted);
       socket.off('meal_rejected', onRejected);
@@ -72,22 +75,50 @@ export default function RequestNowScreen() {
     return config ? hour >= config.start && hour < config.end : false;
   };
 
-  // 2. Button Functionality
+  // 1. Send Request
   const handleRequest = async () => {
     if (!selectedMeal) return;
     
-    setRequestLoading(true); // Start loading spinner on button
+    // Find the booking ID for the selected meal to verify later
+    const booking = todayBookings.find(b => b.mealType === selectedMeal);
+    if (booking) setCurrentBookingId(booking._id);
 
+    setRequestLoading(true);
     try {
-      // Step A: Call API to notify server
       await requestMealAction(selectedMeal, token!); 
-      
-      // Step B: Wait for Socket Response (Handled in useEffect)
-      // We don't stop loading here; we wait for the socket event 'meal_accepted' or 'meal_rejected'
-      
+      // UI stays loading until Socket response...
     } catch (err: any) {
       setRequestLoading(false);
       Alert.alert("Error", err);
+    }
+  };
+
+  // 2. Submit OTP
+  const handleSubmitOTP = async () => {
+    if (!enteredOtp || enteredOtp.length !== 4) {
+      Alert.alert("Invalid Code", "Please enter the 4-digit code shown above.");
+      return;
+    }
+    
+    // Optional: Check if it matches what we received (Client side check)
+    if (enteredOtp !== receivedOtp) {
+      Alert.alert("Error", "The code you entered does not match.");
+      return;
+    }
+
+    setRequestLoading(true);
+    try {
+      // Verify with Backend
+      if (currentBookingId) {
+        await verifyMealOTP(currentBookingId, enteredOtp, token!);
+        
+        // Success -> Redirect to Payment
+        router.push('/payment'); 
+      }
+    } catch (err: any) {
+      Alert.alert("Verification Failed", err);
+    } finally {
+      setRequestLoading(false);
     }
   };
 
@@ -110,99 +141,152 @@ export default function RequestNowScreen() {
         </View>
       </View>
 
-      {/* Body: Meal List */}
       <ScrollView className="flex-1 px-5 pt-6 pb-32" showsVerticalScrollIndicator={false}>
-        {todayBookings.length === 0 ? (
-          <View className="mt-20 items-center opacity-60">
-            <Feather name="calendar" size={60} color="#006B3F" />
-            <Text className="text-lg font-bold text-[#006B3F] mt-6 text-center">No bookings found</Text>
-            <Text className="text-gray-500 text-center mt-2">You haven't booked any meals for today.</Text>
-          </View>
-        ) : (
-          MEAL_CONFIG.map((meal) => {
-            const isBooked = todayBookings.some(b => b.mealType === meal.id);
-            const canRequest = isBooked && isTimeValid(meal.id);
-            const isSelected = selectedMeal === meal.id;
+        
+        {/* --- CONDITIONAL VIEW: Show List OR OTP --- */}
+        {!isOtpView ? (
+          // === VIEW 1: EXISTING MEAL LIST ===
+          todayBookings.length === 0 ? (
+            <View className="mt-20 items-center opacity-60">
+              <Feather name="calendar" size={60} color="#006B3F" />
+              <Text className="text-lg font-bold text-[#006B3F] mt-6 text-center">No bookings found</Text>
+              <Text className="text-gray-500 text-center mt-2">You haven't booked any meals for today.</Text>
+            </View>
+          ) : (
+            MEAL_CONFIG.map((meal) => {
+              const isBooked = todayBookings.some(b => b.mealType === meal.id);
+              const canRequest = isBooked && isTimeValid(meal.id);
+              const isSelected = selectedMeal === meal.id;
 
-            return (
-              <TouchableOpacity 
-                key={meal.id}
-                disabled={!canRequest}
-                activeOpacity={0.9}
-                onPress={() => setSelectedMeal(meal.id)}
-                className={`mb-4 p-5 rounded-[30px] border-2 flex-row items-center ${
-                  !isBooked ? 'bg-gray-100 border-gray-100 opacity-50' : 
-                  !canRequest ? 'bg-gray-50 border-gray-100' : 
-                  isSelected ? 'bg-white border-[#006B3F] shadow-lg shadow-emerald-100' : 'bg-white border-transparent shadow-sm'
-                }`}
-              >
-                <View className={`p-4 rounded-2xl ${canRequest ? 'bg-[#F1FBF6]' : 'bg-gray-200'}`}>
-                  <MaterialCommunityIcons 
-                    name={canRequest ? "silverware-fork-knife" : "lock-outline"} 
-                    size={28} color={canRequest ? "#006B3F" : "#9ca3af"} 
-                  />
-                </View>
-                <View className="ml-4 flex-1">
-                  <View className="flex-row justify-between items-center mb-1">
-                    <Text className={`text-lg font-black ${canRequest ? 'text-slate-800' : 'text-slate-400'}`}>
-                      {meal.title}
-                    </Text>
-                    {isBooked && (
-                      <View className="bg-emerald-100 px-2 py-1 rounded-lg">
-                        <Text className="text-emerald-700 text-[10px] font-bold">BOOKED</Text>
-                      </View>
+              return (
+                <TouchableOpacity 
+                  key={meal.id}
+                  disabled={!canRequest}
+                  activeOpacity={0.9}
+                  onPress={() => setSelectedMeal(meal.id)}
+                  className={`mb-4 p-5 rounded-[30px] border-2 flex-row items-center ${
+                    !isBooked ? 'bg-gray-100 border-gray-100 opacity-50' : 
+                    !canRequest ? 'bg-gray-50 border-gray-100' : 
+                    isSelected ? 'bg-white border-[#006B3F] shadow-lg shadow-emerald-100' : 'bg-white border-transparent shadow-sm'
+                  }`}
+                >
+                  <View className={`p-4 rounded-2xl ${canRequest ? 'bg-[#F1FBF6]' : 'bg-gray-200'}`}>
+                    <MaterialCommunityIcons 
+                      name={canRequest ? "silverware-fork-knife" : "lock-outline"} 
+                      size={28} color={canRequest ? "#006B3F" : "#9ca3af"} 
+                    />
+                  </View>
+                  <View className="ml-4 flex-1">
+                    <View className="flex-row justify-between items-center mb-1">
+                      <Text className={`text-lg font-black ${canRequest ? 'text-slate-800' : 'text-slate-400'}`}>
+                        {meal.title}
+                      </Text>
+                      {isBooked && (
+                        <View className="bg-emerald-100 px-2 py-1 rounded-lg">
+                          <Text className="text-emerald-700 text-[10px] font-bold">BOOKED</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text className="text-gray-400 text-xs">{meal.sin}</Text>
+                    
+                    {!canRequest && isBooked && (
+                      <Text className="text-orange-400 text-[10px] font-bold mt-2 uppercase">Time Locked / වේලාව නොවේ</Text>
+                    )}
+                    {canRequest && (
+                      <Text className="text-[#006B3F] text-[10px] font-bold mt-2 uppercase">Ready to Request / ලබා ගත හැක</Text>
                     )}
                   </View>
-                  <Text className="text-gray-400 text-xs">{meal.sin}</Text>
-                  
-                  {/* Status Text */}
-                  {!canRequest && isBooked && (
-                    <Text className="text-orange-400 text-[10px] font-bold mt-2 uppercase">
-                      Time Locked / වේලාව නොවේ
-                    </Text>
-                  )}
                   {canRequest && (
-                    <Text className="text-[#006B3F] text-[10px] font-bold mt-2 uppercase">
-                      Ready to Request / ලබා ගත හැක
-                    </Text>
+                    <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected ? 'border-[#006B3F]' : 'border-gray-200'}`}>
+                      {isSelected && <View className="w-3 h-3 rounded-full bg-[#006B3F]" />}
+                    </View>
                   )}
-                </View>
+                </TouchableOpacity>
+              );
+            })
+          )
+        ) : (
+          // === VIEW 2: OTP DISPLAY & INPUT (Matches Image 5) ===
+          <View className="mt-4">
+             {/* Selected Meal Indicator */}
+            <View className="bg-white p-5 rounded-[30px] flex-row items-center shadow-sm border border-gray-100 mb-6">
+               <View className="bg-[#F1FBF6] p-4 rounded-2xl">
+                 <MaterialCommunityIcons name="silverware-fork-knife" size={28} color="#006B3F" />
+               </View>
+               <View className="ml-4">
+                 <Text className="text-lg font-black text-slate-800">{selectedMeal?.toUpperCase()}</Text>
+                 <View className="bg-emerald-100 self-start px-2 py-1 rounded-lg mt-1">
+                    <Text className="text-emerald-700 text-[10px] font-bold">ACCEPTED</Text>
+                 </View>
+               </View>
+            </View>
 
-                {/* Radio Button Visual */}
-                {canRequest && (
-                  <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected ? 'border-[#006B3F]' : 'border-gray-200'}`}>
-                    {isSelected && <View className="w-3 h-3 rounded-full bg-[#006B3F]" />}
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })
+            {/* OTP Display Card (Dashed Border) */}
+            <View className="bg-[#FFFBEB] p-8 rounded-[35px] border-2 border-dashed border-amber-300 items-center mb-8">
+              <MaterialCommunityIcons name="ticket-confirmation-outline" size={40} color="#D97706" />
+              <Text className="text-amber-700 font-bold text-center mt-2 mb-1">YOUR OTP / ඔබගේ කේතය</Text>
+              
+              {/* LARGE OTP TEXT */}
+              <Text className="text-6xl font-black text-amber-800 tracking-widest my-2">
+                {receivedOtp}
+              </Text>
+              
+              <Text className="text-amber-600/60 text-[10px] font-bold">Show this to the canteen staff</Text>
+            </View>
+
+            {/* OTP Input Field */}
+            <Text className="text-[#006B3F] font-bold ml-2 mb-2">Type Code Here / කේතය ඇතුළත් කරන්න</Text>
+            <View className="bg-white p-2 rounded-[20px] border border-gray-200 shadow-sm">
+              <TextInput
+                value={enteredOtp}
+                onChangeText={setEnteredOtp}
+                keyboardType="numeric"
+                maxLength={4}
+                placeholder={receivedOtp} // Hint is the actual OTP
+                className="text-center text-3xl font-bold text-slate-800 py-4 tracking-[10px]"
+                selectionColor="#006B3F"
+              />
+            </View>
+          </View>
         )}
         <View className="h-32" /> 
       </ScrollView>
 
-      {/* 3. Bottom Request Button (Fixed Position) */}
+      {/* 3. Bottom Action Button (Changes based on View) */}
       <View className="absolute bottom-0 left-0 right-0 bg-white p-6 rounded-t-[40px] shadow-2xl shadow-black border-t border-gray-50">
-        <TouchableOpacity 
-          onPress={handleRequest}
-          disabled={!selectedMeal || requestLoading}
-          className={`py-5 rounded-[25px] flex-row justify-center items-center shadow-lg ${
-            !selectedMeal || requestLoading ? 'bg-gray-300' : 'bg-[#006B3F] shadow-emerald-200'
-          }`}
-        >
-          {requestLoading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Text className="text-white font-black text-lg mr-3">
-                {selectedMeal ? `REQUEST ${selectedMeal.toUpperCase()}` : 'SELECT A MEAL'}
-              </Text>
-              {selectedMeal && <Feather name="send" size={20} color="white" />}
-            </>
-          )}
-        </TouchableOpacity>
+        {!isOtpView ? (
+          // Button A: REQUEST
+          <TouchableOpacity 
+            onPress={handleRequest}
+            disabled={!selectedMeal || requestLoading}
+            className={`py-5 rounded-[25px] flex-row justify-center items-center shadow-lg ${
+              !selectedMeal || requestLoading ? 'bg-gray-300' : 'bg-[#006B3F] shadow-emerald-200'
+            }`}
+          >
+            {requestLoading ? <ActivityIndicator color="white" /> : (
+              <>
+                <Text className="text-white font-black text-lg mr-3">
+                  {selectedMeal ? `REQUEST ${selectedMeal.toUpperCase()}` : 'SELECT A MEAL'}
+                </Text>
+                {selectedMeal && <Feather name="send" size={20} color="white" />}
+              </>
+            )}
+          </TouchableOpacity>
+        ) : (
+          // Button B: SUBMIT OTP (Matches Image 5 Green Button)
+          <TouchableOpacity 
+            onPress={handleSubmitOTP}
+            disabled={requestLoading}
+            className="bg-[#006B3F] py-5 rounded-[25px] flex-row justify-center items-center shadow-lg shadow-emerald-200"
+          >
+             {requestLoading ? <ActivityIndicator color="white" /> : (
+               <Text className="text-white font-black text-lg">SUBMIT OTP</Text>
+             )}
+          </TouchableOpacity>
+        )}
+        
         <Text className="text-center text-gray-300 text-[10px] mt-3">
-          Click to notify the canteen / ආපනශාලාව දැනුවත් කිරීමට ඔබන්න
+          {!isOtpView ? "Click to notify the canteen / ආපනශාලාව දැනුවත් කිරීමට ඔබන්න" : "Verify code to proceed / ගෙවීම් වෙත යොමු වන්න"}
         </Text>
       </View>
     </SafeAreaView>
