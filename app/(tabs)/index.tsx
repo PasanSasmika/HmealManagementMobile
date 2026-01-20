@@ -57,7 +57,7 @@ export default function HomeScreen() {
           {/* Main Action: Book Menu */}
           <TouchableOpacity 
             activeOpacity={0.8}
-            onPress={() => router.push('/book')}
+            onPress={() => router.push('/BookMenu')}
             className="bg-white p-8 rounded-[40px] shadow-xl shadow-slate-200 border border-slate-100 flex-row items-center"
           >
             <View className="bg-emerald-50 p-5 rounded-3xl mr-6">

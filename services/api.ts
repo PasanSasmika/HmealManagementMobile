@@ -22,3 +22,15 @@ export const loginUser = async (username: string, mobileNumber: string) => {
     throw 'Cannot connect to server. Check your network.';
   }
 };
+
+export const bookMeals = async (bookings: { date: string, mealType: string }[], token: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/api/meal/book`, 
+      { bookings }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Booking failed';
+  }
+};
