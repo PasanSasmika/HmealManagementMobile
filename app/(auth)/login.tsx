@@ -16,6 +16,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { loginUser } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -24,22 +25,28 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const setAuth = useAuthStore((state) => state.setAuth);
 
-  const handleLogin = async () => {
-    setErrorMessage(null);
-    if (!username || !mobileNumber) {
-      setErrorMessage('Please fill all fields');
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await loginUser(username, mobileNumber);
-      setAuth(data.token, data.user);
-    } catch (err: any) {
-      setErrorMessage(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleLogin = async () => {
+  setErrorMessage(null);
+  if (!username || !mobileNumber) {
+    setErrorMessage('Please fill all fields');
+    return;
+  }
+  setLoading(true);
+
+  try {
+    const data = await loginUser(username, mobileNumber);
+    // 1. Save to Zustand
+    setAuth(data.token, data.user);
+    
+    // 2. Manual Redirect Backup
+    router.replace('/(tabs)');
+    
+  } catch (err: any) {
+    setErrorMessage(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <SafeAreaView className="flex-1 bg-[#F1FBF6]">
