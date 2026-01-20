@@ -9,7 +9,7 @@ import { socket } from '@/services/socket';
 
 const MEAL_CONFIG = [
   { id: 'breakfast', title: 'BREAKFAST', sin: 'උදේ ආහාරය', tam: 'காலை உணவு', start: 7, end: 11 },
-  { id: 'lunch', title: 'LUNCH', sin: 'දවල් ආහාරය', tam: 'மதிய உணவு', start: 12, end: 16 },
+  { id: 'lunch', title: 'LUNCH', sin: 'දවල් ආහාරය', tam: 'மதிய உணவு', start: 12, end: 17 },
   { id: 'dinner', title: 'DINNER', sin: 'රාත්‍රී ආහාරය', tam: 'இரவு உணவு', start: 18, end: 22 },
 ];
 
@@ -108,12 +108,17 @@ export default function RequestNowScreen() {
 
     setRequestLoading(true);
     try {
-      // Verify with Backend
       if (currentBookingId) {
         await verifyMealOTP(currentBookingId, enteredOtp, token!);
         
-        // Success -> Redirect to Payment
-        router.push('/payment'); 
+        // UPDATED: Navigate with Params
+        router.push({
+          pathname: '/payment',
+          params: { 
+            bookingId: currentBookingId,
+            mealType: selectedMeal // 'breakfast', 'lunch', or 'dinner'
+          }
+        }); 
       }
     } catch (err: any) {
       Alert.alert("Verification Failed", err);

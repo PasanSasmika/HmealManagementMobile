@@ -82,3 +82,41 @@ export const verifyMealOTP = async (bookingId: string, otp: string, token: strin
     throw error.response?.data?.message || 'OTP Verification failed';
   }
 };
+
+export const getMealPrices = async (token: string) => {
+  try {
+    const response = await axios.get(`${API_URL}/api/meal/prices`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Failed to fetch prices';
+  }
+};
+
+export const processPaymentAction = async (
+  data: { bookingId: string, paymentType: string, amountPaid?: number }, 
+  token: string
+) => {
+  try {
+    const response = await axios.post(`${API_URL}/api/meal/process-payment`, 
+      data, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Payment failed';
+  }
+};
+
+export const issueMealAction = async (bookingId: string, token: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/api/meal/issue`, 
+      { bookingId }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Issue failed';
+  }
+};

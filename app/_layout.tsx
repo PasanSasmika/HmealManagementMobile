@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
-import { socket } from '../services/socket'; // Import socket to connect on auto-login
+import { socket } from '../services/socket';
 
 export default function RootLayout() {
   const { token, user } = useAuthStore();
@@ -19,29 +19,21 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!token && !inAuthGroup) {
-      // 1. Not logged in -> Go to Login
       router.replace('/(auth)/login');
     } 
     else if (token) {
-      // 2. Logged in -> Re-connect Socket
+      // Re-connect Socket
       if (!socket.connected) {
         socket.connect();
         if (user?.id) socket.emit('join', user.id);
         if (user?.role === 'canteen') socket.emit('join', 'canteen_room');
       }
 
-      // 3. Role-Based Redirect
+      // Role Redirects
       if (user?.role === 'canteen') {
-        // If logged in as Canteen but not on dashboard, redirect
-        // We check the path to prevent infinite loops
-        if (segments[0] !== 'canteen-dashboard') {
-          router.replace('/canteen-dashboard');
-        }
-      } else {
-        // Employee -> Go to Tabs
-        if (inAuthGroup) {
-          router.replace('/(tabs)');
-        }
+        if (segments[0] !== 'canteen-dashboard') router.replace('/canteen-dashboard');
+      } else if (inAuthGroup) {
+        router.replace('/(tabs)');
       }
     }
   }, [token, segments, isReady, user]);
@@ -49,8 +41,13 @@ export default function RootLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)/login" options={{ animation: 'fade' }} />
-      <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="canteen-dashboard" options={{ animation: 'fade' }} />
+      
+      {/* Feature Screens - Names must match filenames EXACTLY */}
+      <Stack.Screen name="request-now" options={{ title: 'Request Meal', animation: 'slide_from_right' }} />
+      <Stack.Screen name="payment" options={{ title: 'Payment', animation: 'slide_from_right' }} />
+      <Stack.Screen name="BookMenu" options={{ title: 'Book Meal', animation: 'slide_from_right' }} />
     </Stack>
   );
 }
