@@ -49,12 +49,24 @@ export const getTodayMeals = async (token: string) => {
 // Request specific meal
 export const requestMealAction = async (mealType: string, token: string) => {
   try {
-    const response = await axios.post(`${API_URL}/meal/request`, 
+    const response = await axios.post(`${API_URL}/api/meal/request`, 
       { mealType }, 
       { headers: { Authorization: `Bearer ${token}` } }
     );
     return response.data;
   } catch (error: any) {
     throw error.response?.data?.message || 'Request failed';
+  }
+};
+
+export const respondToRequest = async (bookingId: string, action: 'accept' | 'reject', token: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/api/meal/respond`, 
+      { bookingId, action }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Response failed';
   }
 };
