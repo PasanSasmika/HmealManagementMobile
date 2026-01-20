@@ -34,3 +34,27 @@ export const bookMeals = async (bookings: { date: string, mealType: string }[], 
     throw error.response?.data?.message || 'Booking failed';
   }
 };
+
+export const getTodayMeals = async (token: string) => {
+  try {
+    const response = await axios.get(`${API_URL}/api/meal/today`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Failed to fetch meals';
+  }
+};
+
+// Request specific meal
+export const requestMealAction = async (mealType: string, token: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/meal/request`, 
+      { mealType }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Request failed';
+  }
+};

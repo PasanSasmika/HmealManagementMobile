@@ -73,7 +73,7 @@ export default function HomeScreen() {
           {/* Main Action: Get My Meal */}
           <TouchableOpacity 
             activeOpacity={0.8}
-            onPress={() => console.log("Request Now clicked")}
+             onPress={() => router.push('/request-now')}
             className="bg-emerald-600 p-8 rounded-[40px] shadow-2xl shadow-emerald-200 flex-row items-center"
           >
             <View className="bg-white/20 p-5 rounded-3xl mr-6">
