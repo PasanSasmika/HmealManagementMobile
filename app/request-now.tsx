@@ -541,7 +541,7 @@ export default function RequestNowScreen() {
       </ScrollView>
 
       <View 
-        className="absolute bottom-0 left-0 right-0 bg-white p-6 rounded-t-[40px] border-t border-gray-50" 
+        className="absolute bottom-0 left-0 right-0 bg-white p-14 rounded-t-[40px] border-t border-gray-50" 
         style={{
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 20 },
@@ -590,7 +590,7 @@ export default function RequestNowScreen() {
           <TouchableOpacity
             onPress={handleSubmitOTP}
             disabled={requestLoading}
-            className="bg-[#006B3F] py-5 rounded-[25px] flex-row justify-center items-center"
+            className="bg-[#006B3F] py-5 p-1 rounded-[25px] flex-row justify-center items-center"
             style={{
               shadowColor: "#d1fae5",
               shadowOffset: { width: 0, height: 10 },

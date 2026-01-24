@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
-import { bookMeals } from '@/services/api';
+import { bookMeals, fetchUpcomingBookings } from '@/services/api'; // Import fetchUpcomingBookings
 
 const MEAL_TYPES = [
   { id: 'breakfast', title: 'BREAKFAST', sinhala: 'උදේ ආහාරය', tamil: 'காலை உணவு' },
@@ -24,18 +24,49 @@ export default function BookMenuScreen() {
     dinner: false,
   });
 
-  // Track specific dates selected per meal
+  // Track specific dates selected per meal (New Selections)
   const [selections, setSelections] = useState<Record<string, string[]>>({
     breakfast: [],
     lunch: [],
     dinner: [],
   });
 
+  // ✅ Store existing booked dates from backend
+  const [bookedDates, setBookedDates] = useState<Record<string, string[]>>({
+    breakfast: [],
+    lunch: [],
+    dinner: [],
+  });
+
+  useEffect(() => {
+    loadExistingBookings();
+  }, []);
+
+  const loadExistingBookings = async () => {
+    try {
+      const res = await fetchUpcomingBookings(token!);
+      if (res.success && res.data) {
+        const newBooked: Record<string, string[]> = { breakfast: [], lunch: [], dinner: [] };
+        
+        res.data.forEach((booking: any) => {
+          // Normalize date to compare easily
+          const isoDate = new Date(booking.date).toISOString().split('T')[0] + 'T00:00:00.000Z';
+          if (newBooked[booking.mealType]) {
+            newBooked[booking.mealType].push(isoDate);
+          }
+        });
+        setBookedDates(newBooked);
+      }
+    } catch (err) {
+      console.log("Error loading bookings", err);
+    }
+  };
+
   const getNextSevenDays = () => {
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date();
-      date.setUTCHours(0, 0, 0, 0); // Align with backend UTC expectations
+      date.setUTCHours(0, 0, 0, 0);
       date.setDate(date.getDate() + i);
       days.push(date);
     }
@@ -44,11 +75,9 @@ export default function BookMenuScreen() {
 
   const dates = getNextSevenDays();
 
-  // Toggle the visibility/ticked status of a meal section
   const toggleMealActive = (mealId: string) => {
     setActiveMeals(prev => {
       const isNowActive = !prev[mealId];
-      // If unticked, clear the dates for that meal
       if (!isNowActive) {
         setSelections(s => ({ ...s, [mealId]: [] }));
       }
@@ -82,7 +111,7 @@ export default function BookMenuScreen() {
 
     setLoading(true);
     try {
-      await bookMeals(flatBookings, token!); // Uses your api.ts
+      await bookMeals(flatBookings, token!);
       Alert.alert('Success', 'Meals booked successfully!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -126,7 +155,7 @@ export default function BookMenuScreen() {
               />
             </TouchableOpacity>
 
-            {/* Conditional Date Selection - Only shows if activeMeals[id] is true */}
+            {/* Conditional Date Selection */}
             {activeMeals[meal.id] && (
               <View className="mt-6">
                 <View className="h-[1px] bg-gray-100 mb-4" />
@@ -137,21 +166,42 @@ export default function BookMenuScreen() {
                 <View className="flex-row flex-wrap justify-start">
                   {dates.map((date, index) => {
                     const dateIso = date.toISOString().split('T')[0] + 'T00:00:00.000Z';
+                    
+                    // ✅ CHECK: Is this date already booked?
+                    const isAlreadyBooked = bookedDates[meal.id]?.includes(dateIso);
                     const isSelected = selections[meal.id].includes(dateIso);
+
                     return (
                       <TouchableOpacity
                         key={index}
+                        // ✅ Block press if booked
+                        disabled={isAlreadyBooked} 
                         onPress={() => toggleDate(meal.id, dateIso)}
                         className={`w-[18%] aspect-square rounded-2xl items-center justify-center m-[1%] border ${
-                          isSelected ? 'bg-emerald-600 border-emerald-600' : 'bg-white border-gray-100'
+                          isAlreadyBooked ? 'bg-gray-100 border-gray-200' : // Blocked Style
+                          isSelected ? 'bg-emerald-600 border-emerald-600' : 
+                          'bg-white border-gray-100'
                         }`}
                       >
-                        <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                        <Text className={`text-sm font-bold ${
+                          isAlreadyBooked ? 'text-gray-300' : 
+                          isSelected ? 'text-white' : 'text-slate-700'
+                        }`}>
                           {date.getDate()}
                         </Text>
-                        <Text className={`text-[8px] uppercase ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                        <Text className={`text-[8px] uppercase ${
+                          isAlreadyBooked ? 'text-gray-300' :
+                          isSelected ? 'text-emerald-100' : 'text-slate-400'
+                        }`}>
                           {date.toLocaleString('default', { month: 'short' })}
                         </Text>
+                        
+                        {/* Optional: Lock Icon for blocked dates */}
+                        {isAlreadyBooked && (
+                          <View className="absolute top-1 right-1">
+                            <MaterialCommunityIcons name="lock" size={8} color="#9CA3AF" />
+                          </View>
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -171,7 +221,12 @@ export default function BookMenuScreen() {
           className="bg-emerald-600 py-5 rounded-[25px] flex-row justify-center items-center shadow-lg shadow-emerald-200"
         >
           {loading ? <ActivityIndicator color="white" /> : (
-            <Text className="text-white font-black text-lg">Submit Selection / ඉදිරිපත් කරන්න</Text>
+            <View>
+              <Text className="text-white font-black text-lg text-center">Submit Selection</Text>
+              <Text className="text-white/80 text-[10px] text-center font-bold">
+                ඉදිරිපත් කරන්න / தெரிவை சமர்ப்பிக்கவும்
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>

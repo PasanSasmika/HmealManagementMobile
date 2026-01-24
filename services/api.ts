@@ -132,3 +132,14 @@ export const rejectIssueAction = async (bookingId: string, token: string) => {
     throw error.response?.data?.message || 'Reject failed';
   }
 };
+
+export const fetchUpcomingBookings = async (token: string) => {
+  try {
+    const response = await axios.get(`${API_URL}/api/meal/upcoming`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Failed to fetch bookings';
+  }
+};
