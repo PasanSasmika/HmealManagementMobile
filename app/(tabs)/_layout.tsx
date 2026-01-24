@@ -7,7 +7,7 @@ export default function TabLayout() {
       headerShown: false, 
       tabBarActiveTintColor: '#006B3F',
       tabBarInactiveTintColor: '#9CA3AF',
-      tabBarStyle: { height: 70, paddingBottom: 12, paddingTop: 12 }
+      tabBarStyle: { height: 80, paddingBottom: 12, paddingTop: 12 }
     }}>
       <Tabs.Screen
         name="index"
@@ -20,6 +20,14 @@ export default function TabLayout() {
         name="book"
         options={{
           title: 'Book',
+          tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" size={24} color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="my-wallet"
+        options={{
+          title: 'My Meals',
           tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" size={24} color={color} />,
         }}
       />

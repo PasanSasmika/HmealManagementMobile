@@ -155,3 +155,14 @@ export const cancelMealAction = async (bookingId: string, token: string) => {
     throw error.response?.data?.message || 'Cancellation failed';
   }
 };
+
+export const getWalletStats = async (token: string) => {
+  try {
+    const response = await axios.get(`${API_URL}/api/meal/wallet`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Failed to fetch wallet data';
+  }
+};
