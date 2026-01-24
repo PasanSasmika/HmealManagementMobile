@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'; // Added useEffect
+import React, { useState, useEffect } from 'react'; 
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
-import { bookMeals, fetchUpcomingBookings } from '@/services/api'; // Import fetchUpcomingBookings
+import { bookMeals, fetchUpcomingBookings } from '@/services/api'; 
 
 const MEAL_TYPES = [
   { id: 'breakfast', title: 'BREAKFAST', sinhala: 'උදේ ආහාරය', tamil: 'காலை உணவு' },
@@ -66,7 +66,8 @@ export default function BookMenuScreen() {
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date();
-      date.setUTCHours(0, 0, 0, 0);
+      // Ensure we are working with midnight of the current day to start
+      date.setHours(0, 0, 0, 0); 
       date.setDate(date.getDate() + i);
       days.push(date);
     }
@@ -74,6 +75,27 @@ export default function BookMenuScreen() {
   };
 
   const dates = getNextSevenDays();
+
+  // ✅ NEW: Helper to check if the booking time window has passed
+  const checkTimeLock = (targetDate: Date, mealId: string) => {
+    const now = new Date();
+    const deadline = new Date(targetDate); // Clone the target date
+
+    if (mealId === 'breakfast') {
+      // Rule: Previous Day (-1) before 9:00 PM (21:00)
+      deadline.setDate(deadline.getDate() - 1);
+      deadline.setHours(21, 0, 0, 0);
+    } else if (mealId === 'lunch') {
+      // Rule: Same Day before 9:00 AM
+      deadline.setHours(9, 0, 0, 0);
+    } else if (mealId === 'dinner') {
+      // Rule: Same Day before 3:00 PM (15:00)
+      deadline.setHours(15, 0, 0, 0);
+    }
+
+    // If current time is greater than deadline, return true (Locked)
+    return now > deadline;
+  };
 
   const toggleMealActive = (mealId: string) => {
     setActiveMeals(prev => {
@@ -165,39 +187,50 @@ export default function BookMenuScreen() {
                 
                 <View className="flex-row flex-wrap justify-start">
                   {dates.map((date, index) => {
-                    const dateIso = date.toISOString().split('T')[0] + 'T00:00:00.000Z';
+                    // Create ISO string for Backend/Storage
+                    // Note: We use UTC midnight logic for the string to match backend consistency
+                    const dateForIso = new Date(date);
+                    dateForIso.setUTCHours(0,0,0,0);
+                    const dateIso = dateForIso.toISOString().split('T')[0] + 'T00:00:00.000Z';
                     
-                    // ✅ CHECK: Is this date already booked?
+                    // 1. Is it already booked?
                     const isAlreadyBooked = bookedDates[meal.id]?.includes(dateIso);
+                    
+                    // 2. Is the booking window closed? (Time Check)
+                    const isTimeLocked = checkTimeLock(date, meal.id);
+
+                    // Combine for disabled state
+                    const isDisabled = isAlreadyBooked || isTimeLocked;
+                    
                     const isSelected = selections[meal.id].includes(dateIso);
 
                     return (
                       <TouchableOpacity
                         key={index}
-                        // ✅ Block press if booked
-                        disabled={isAlreadyBooked} 
+                        // ✅ Block press if booked OR time passed
+                        disabled={isDisabled} 
                         onPress={() => toggleDate(meal.id, dateIso)}
                         className={`w-[18%] aspect-square rounded-2xl items-center justify-center m-[1%] border ${
-                          isAlreadyBooked ? 'bg-gray-100 border-gray-200' : // Blocked Style
+                          isDisabled ? 'bg-gray-100 border-gray-200' : // Blocked Style
                           isSelected ? 'bg-emerald-600 border-emerald-600' : 
                           'bg-white border-gray-100'
                         }`}
                       >
                         <Text className={`text-sm font-bold ${
-                          isAlreadyBooked ? 'text-gray-300' : 
+                          isDisabled ? 'text-gray-300' : 
                           isSelected ? 'text-white' : 'text-slate-700'
                         }`}>
                           {date.getDate()}
                         </Text>
                         <Text className={`text-[8px] uppercase ${
-                          isAlreadyBooked ? 'text-gray-300' :
+                          isDisabled ? 'text-gray-300' :
                           isSelected ? 'text-emerald-100' : 'text-slate-400'
                         }`}>
                           {date.toLocaleString('default', { month: 'short' })}
                         </Text>
                         
-                        {/* Optional: Lock Icon for blocked dates */}
-                        {isAlreadyBooked && (
+                        {/* Lock Icon for booked OR time-locked dates */}
+                        {isDisabled && (
                           <View className="absolute top-1 right-1">
                             <MaterialCommunityIcons name="lock" size={8} color="#9CA3AF" />
                           </View>
