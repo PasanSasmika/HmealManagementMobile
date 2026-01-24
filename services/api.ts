@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://192.168.8.100:5000'; // Replace with your WiFi IP
+const API_URL = 'https://hmealmanagementbackend.onrender.com'; // Replace with your WiFi IP
 
 export const loginUser = async (username: string, mobileNumber: string) => {
   try {
@@ -118,5 +118,17 @@ export const issueMealAction = async (bookingId: string, token: string) => {
     return response.data;
   } catch (error: any) {
     throw error.response?.data?.message || 'Issue failed';
+  }
+};
+
+export const rejectIssueAction = async (bookingId: string, token: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/api/meal/reject-issue`, 
+      { bookingId }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data?.message || 'Reject failed';
   }
 };

@@ -79,11 +79,10 @@ export default function PaymentScreen() {
         amountPaid: finalAmountPaid
       }, token!);
 
-      Alert.alert(
-        "Payment Successful! 🎉",
-        "Your meal is confirmed. Please collect it from the counter.",
-        [{ text: "Back to Home", onPress: () => router.replace('/(tabs)') }]
-      );
+      router.replace({
+  pathname: '/request-now',
+  params: { paymentSuccess: 'true' }
+});
     } catch (err: any) {
       Alert.alert("Payment Failed", err);
     } finally {
