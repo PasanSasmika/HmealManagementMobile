@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
-import { respondToRequest, issueMealAction, rejectIssueAction } from '@/services/api'; // Import rejectIssueAction
+import { respondToRequest, issueMealAction, rejectIssueAction } from '@/services/api';
 import { socket } from '@/services/socket';
 
 export default function CanteenDashboard() {
@@ -13,6 +13,9 @@ export default function CanteenDashboard() {
   
   const [requests, setRequests] = useState<any[]>([]);
   const [servingQueue, setServingQueue] = useState<any[]>([]);
+  
+  // ✅ NEW: Store typed amounts for validation { bookingId: "150" }
+  const [verifyAmounts, setVerifyAmounts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
@@ -43,17 +46,46 @@ export default function CanteenDashboard() {
     }
   };
 
-  const handleIssueMeal = async (bookingId: string) => {
+  // ✅ UPDATED: Validation before Issue
+  const validateAndIssue = async (bookingId: string, systemAmount: number) => {
+    const inputAmount = verifyAmounts[bookingId];
+
+    // 1. Check if empty
+    if (!inputAmount) {
+      Alert.alert(
+        "Input Required / ඇතුලත් කරන්න", 
+        "Please type the amount to verify.\nකරුණාකර මුදල ටයිප් කරන්න."
+      );
+      return;
+    }
+
+    // 2. Check if matches
+    if (parseFloat(inputAmount) !== systemAmount) {
+      Alert.alert(
+        "Mismatch / නොගැලපේ ❌", 
+        `Typed: ${inputAmount}\nExpected: ${systemAmount}\n\nPlease check the cash/amount again.\nකරුණාකර මුදල නැවත පරීක්ෂා කරන්න.`
+      );
+      return;
+    }
+
+    // 3. Proceed if correct
     try {
       await issueMealAction(bookingId, token!);
       setServingQueue(prev => prev.filter(item => item.bookingId !== bookingId));
+      
+      // Clear input state
+      setVerifyAmounts(prev => {
+        const newState = { ...prev };
+        delete newState[bookingId];
+        return newState;
+      });
+
       Alert.alert("Success", "Meal Issued! / ආහාර නිකුත් කරන ලදී ✅");
     } catch (err: any) {
       Alert.alert("Error", err);
     }
   };
 
-  // ✅ NEW: Handle Reject at Issue Stage
   const handleRejectIssue = async (bookingId: string) => {
     Alert.alert(
       "Confirm Reject",
@@ -120,40 +152,51 @@ export default function CanteenDashboard() {
                   </View>
                   <View className="bg-emerald-100 px-3 py-1 rounded-full flex-row items-center">
                     <Feather name="check" size={12} color="#059669" />
-                    <Text className="text-emerald-700 text-[10px] font-bold ml-1">OTP OK / තහවුරු විය</Text>
+                    <Text className="text-emerald-700 text-[10px] font-bold ml-1">OTP OK</Text>
                   </View>
                 </View>
 
-                {/* Details */}
+                {/* Details Box */}
                 <View className="bg-gray-50 p-3 rounded-xl mb-4 flex-row justify-between items-center border border-gray-100">
                   <View>
-                    <Text className="text-[10px] text-gray-400 font-bold uppercase">Payment / ගෙවීම</Text>
+                    <Text className="text-[10px] text-gray-400 font-bold uppercase">Payment Type</Text>
                     <Text className="text-sm font-bold text-[#006B3F] capitalize">
-                      {item.paymentType === 'pay_now' ? 'Pay Now (Cash/Card)' : 
+                      {item.paymentType === 'pay_now' ? 'Pay Now' : 
                        item.paymentType === 'free' ? 'Free (Intern)' : 'Salary Deduct'}
                     </Text>
                   </View>
                   <View className="items-end">
-                    <Text className="text-[10px] text-gray-400 font-bold uppercase">Paid / ගෙවූ මුදල</Text>
+                    <Text className="text-[10px] text-gray-400 font-bold uppercase">System Amount</Text>
                     <Text className="text-lg font-black text-slate-800">LKR {item.amountPaid}</Text>
-                    {item.balance > 0 && (
-                      <Text className="text-[10px] text-red-400 font-bold">Bal: {item.balance}</Text>
-                    )}
                   </View>
+                </View>
+
+                {/* ✅ NEW: Validation Input Field */}
+                <View className="mb-4">
+                  <Text className="text-[10px] text-slate-400 font-bold mb-1 ml-1 uppercase">
+                    Verify Amount / ගෙවන මුදල තහවුරු කරන්න / தொகையை உறுதிப்படுத்தவும்(Type {item.amountPaid})
+                  </Text>
+                  <TextInput 
+                    keyboardType="numeric"
+                    placeholder="Enter Paid Amount"
+                    value={verifyAmounts[item.bookingId] || ''}
+                    onChangeText={(text) => setVerifyAmounts(prev => ({ ...prev, [item.bookingId]: text }))}
+                    className="bg-white border border-gray-200 rounded-xl p-3 font-bold text-lg text-[#006B3F] text-center shadow-sm"
+                  />
                 </View>
 
                 {/* Actions: ISSUE & REJECT */}
                 <View className="flex-row gap-3">
-                  {/* Issue Button */}
+                  {/* Issue Button (Now calls validateAndIssue) */}
                   <TouchableOpacity 
-                    onPress={() => handleIssueMeal(item.bookingId)}
+                    onPress={() => validateAndIssue(item.bookingId, item.amountPaid)}
                     className="flex-1 bg-[#006B3F] py-4 rounded-xl flex-row justify-center items-center shadow-md shadow-emerald-200"
                   >
-                    <Text className="text-white font-bold text-lg mr-2">ISSUE / නිකුත්</Text>
+                    <Text className="text-white font-bold text-lg mr-2">ISSUE / නිකුත් කරන්න</Text>
                     <Feather name="arrow-right-circle" size={20} color="white" />
                   </TouchableOpacity>
 
-                  {/* Reject Button (New) */}
+                  {/* Reject Button */}
                   <TouchableOpacity 
                     onPress={() => handleRejectIssue(item.bookingId)}
                     className="bg-red-50 px-4 rounded-xl justify-center items-center border border-red-100"

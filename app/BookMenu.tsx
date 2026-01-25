@@ -83,7 +83,7 @@ export default function BookMenuScreen() {
 
     if (mealId === 'breakfast') {
       // Rule: Previous Day (-1) before 9:00 PM (21:00)
-      deadline.setDate(deadline.getDate() - 1);
+      deadline.setDate(deadline.getDate() +2);
       deadline.setHours(21, 0, 0, 0);
     } else if (mealId === 'lunch') {
       // Rule: Same Day before 9:00 AM

@@ -118,6 +118,8 @@ const handleLogin = async () => {
               </View>
               
               <Text className="text-center text-gray-400 mt-8">Meal Management System V1.0</Text>
+              <Text className="text-center text-gray-400">by</Text>
+              <Text className="text-center text-gray-400">Vogue Software Solutions</Text>
             </View>
           </TouchableWithoutFeedback>
         </ScrollView>
