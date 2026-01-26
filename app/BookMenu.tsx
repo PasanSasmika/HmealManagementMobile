@@ -17,21 +17,18 @@ export default function BookMenuScreen() {
   const { token } = useAuthStore();
   const [loading, setLoading] = useState(false);
   
-  // Track which meal types are "ticked" (expanded)
   const [activeMeals, setActiveMeals] = useState<Record<string, boolean>>({
     breakfast: false,
     lunch: false,
     dinner: false,
   });
 
-  // Track specific dates selected per meal (New Selections)
   const [selections, setSelections] = useState<Record<string, string[]>>({
     breakfast: [],
     lunch: [],
     dinner: [],
   });
 
-  // ✅ Store existing booked dates from backend
   const [bookedDates, setBookedDates] = useState<Record<string, string[]>>({
     breakfast: [],
     lunch: [],
@@ -49,10 +46,13 @@ export default function BookMenuScreen() {
         const newBooked: Record<string, string[]> = { breakfast: [], lunch: [], dinner: [] };
         
         res.data.forEach((booking: any) => {
-          // Normalize date to compare easily
-          const isoDate = new Date(booking.date).toISOString().split('T')[0] + 'T00:00:00.000Z';
+          // ✅ FIX 1: Parse String Directly. Do NOT use new Date() for the key.
+          // DB returns "2026-01-26T00:00:00.000Z". We just want the first part to match our buttons.
+          const rawDatePart = booking.date.split('T')[0]; // "2026-01-26"
+          const isoKey = `${rawDatePart}T00:00:00.000Z`; // Reconstruct exact key format
+          
           if (newBooked[booking.mealType]) {
-            newBooked[booking.mealType].push(isoDate);
+            newBooked[booking.mealType].push(isoKey);
           }
         });
         setBookedDates(newBooked);
@@ -66,7 +66,7 @@ export default function BookMenuScreen() {
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date();
-      // Ensure we are working with midnight of the current day to start
+      // Keep it in Local Time. Don't mess with UTC here.
       date.setHours(0, 0, 0, 0); 
       date.setDate(date.getDate() + i);
       days.push(date);
@@ -76,24 +76,28 @@ export default function BookMenuScreen() {
 
   const dates = getNextSevenDays();
 
-  // ✅ NEW: Helper to check if the booking time window has passed
+  // Helper to generate the exact ID string based on LOCAL date
+  const generateDateKey = (dateObj: Date) => {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    // Forces the string to look like UTC midnight, but based on the Button's visual date
+    return `${year}-${month}-${day}T00:00:00.000Z`;
+  };
+
   const checkTimeLock = (targetDate: Date, mealId: string) => {
     const now = new Date();
-    const deadline = new Date(targetDate); // Clone the target date
+    const deadline = new Date(targetDate); 
 
     if (mealId === 'breakfast') {
-      // Rule: Previous Day (-1) before 9:00 PM (21:00)
-      deadline.setDate(deadline.getDate() +2);
+      deadline.setDate(deadline.getDate() - 1);
       deadline.setHours(21, 0, 0, 0);
     } else if (mealId === 'lunch') {
-      // Rule: Same Day before 9:00 AM
       deadline.setHours(9, 0, 0, 0);
     } else if (mealId === 'dinner') {
-      // Rule: Same Day before 3:00 PM (15:00)
       deadline.setHours(15, 0, 0, 0);
     }
 
-    // If current time is greater than deadline, return true (Locked)
     return now > deadline;
   };
 
@@ -146,7 +150,6 @@ export default function BookMenuScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F1FBF6]">
-      {/* Header */}
       <View className="px-6 py-4 flex-row items-center">
         <TouchableOpacity onPress={() => router.back()} className="p-2">
           <Ionicons name="arrow-back" size={28} color="#006B3F" />
@@ -160,7 +163,6 @@ export default function BookMenuScreen() {
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
         {MEAL_TYPES.map((meal) => (
           <View key={meal.id} className="bg-white rounded-[30px] p-6 mb-4 shadow-sm border border-gray-100">
-            {/* Meal Header / Toggle Row */}
             <TouchableOpacity 
               onPress={() => toggleMealActive(meal.id)}
               className="flex-row justify-between items-center"
@@ -177,7 +179,6 @@ export default function BookMenuScreen() {
               />
             </TouchableOpacity>
 
-            {/* Conditional Date Selection */}
             {activeMeals[meal.id] && (
               <View className="mt-6">
                 <View className="h-[1px] bg-gray-100 mb-4" />
@@ -187,31 +188,24 @@ export default function BookMenuScreen() {
                 
                 <View className="flex-row flex-wrap justify-start">
                   {dates.map((date, index) => {
-                    // Create ISO string for Backend/Storage
-                    // Note: We use UTC midnight logic for the string to match backend consistency
-                    const dateForIso = new Date(date);
-                    dateForIso.setUTCHours(0,0,0,0);
-                    const dateIso = dateForIso.toISOString().split('T')[0] + 'T00:00:00.000Z';
                     
-                    // 1. Is it already booked?
+                    // ✅ FIX 2: Use Manual Key Generation
+                    // This ensures button "26" -> "2026-01-26...", button "27" -> "2026-01-27..."
+                    // No more timezone shifting.
+                    const dateIso = generateDateKey(date);
+                    
                     const isAlreadyBooked = bookedDates[meal.id]?.includes(dateIso);
-                    
-                    // 2. Is the booking window closed? (Time Check)
                     const isTimeLocked = checkTimeLock(date, meal.id);
-
-                    // Combine for disabled state
                     const isDisabled = isAlreadyBooked || isTimeLocked;
-                    
                     const isSelected = selections[meal.id].includes(dateIso);
 
                     return (
                       <TouchableOpacity
                         key={index}
-                        // ✅ Block press if booked OR time passed
                         disabled={isDisabled} 
                         onPress={() => toggleDate(meal.id, dateIso)}
                         className={`w-[18%] aspect-square rounded-2xl items-center justify-center m-[1%] border ${
-                          isDisabled ? 'bg-gray-100 border-gray-200' : // Blocked Style
+                          isDisabled ? 'bg-gray-100 border-gray-200' : 
                           isSelected ? 'bg-emerald-600 border-emerald-600' : 
                           'bg-white border-gray-100'
                         }`}
@@ -229,7 +223,6 @@ export default function BookMenuScreen() {
                           {date.toLocaleString('default', { month: 'short' })}
                         </Text>
                         
-                        {/* Lock Icon for booked OR time-locked dates */}
                         {isDisabled && (
                           <View className="absolute top-1 right-1">
                             <MaterialCommunityIcons name="lock" size={8} color="#9CA3AF" />
@@ -246,7 +239,6 @@ export default function BookMenuScreen() {
         <View className="h-10" />
       </ScrollView>
 
-      {/* Footer Submit Button */}
       <View className="p-6 bg-white border-t border-gray-100">
         <TouchableOpacity 
           onPress={handleSubmit}

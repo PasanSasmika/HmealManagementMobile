@@ -18,20 +18,38 @@ export default function CanteenDashboard() {
   const [verifyAmounts, setVerifyAmounts] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // 1. Connect and Join Room
     if (!socket.connected) socket.connect();
     socket.emit('join', 'canteen_room');
 
+    // 2. Listeners
+
+    // Add new incoming request
     socket.on('new_meal_request', (data) => {
       setRequests(prev => [data, ...prev]);
     });
 
+    // Add new ready-to-serve item
     socket.on('payment_confirmed', (data) => {
       setServingQueue(prev => [data, ...prev]);
     });
 
+    // ✅ Remove request if handled by another device (Web/Tablet)
+    socket.on('remove_from_requests', ({ bookingId }) => {
+      setRequests(prev => prev.filter(req => req.bookingId !== bookingId));
+    });
+
+    // ✅ Remove from queue if served/rejected by another device
+    socket.on('remove_from_queue', ({ bookingId }) => {
+      setServingQueue(prev => prev.filter(item => item.bookingId !== bookingId));
+    });
+
+    // 3. Cleanup
     return () => {
       socket.off('new_meal_request');
       socket.off('payment_confirmed');
+      socket.off('remove_from_requests'); // ✅ Clean up
+      socket.off('remove_from_queue');    // ✅ Clean up
     };
   }, []);
 
