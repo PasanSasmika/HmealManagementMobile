@@ -5,10 +5,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getWalletStats } from '@/services/api';
+// ✅ Import Socket to listen for real-time updates
+import { socket } from '@/services/socket'; 
 
 export default function MyWalletScreen() {
   const router = useRouter();
-  const { token } = useAuthStore();
+  // ✅ Get 'user' object to access user._id for the socket room
+  const { token, user } = useAuthStore();
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -22,6 +25,35 @@ export default function MyWalletScreen() {
 
   useEffect(() => {
     fetchData();
+
+    // ============================================================
+    // ✅ SOCKET SETUP
+    // ============================================================
+    if (!socket.connected) socket.connect();
+
+    // 1. Join a room named after the User's ID
+    // FIX: Cast 'user' to 'any' to bypass the TypeScript error
+    const userId = (user as any)?._id || (user as any)?.id;
+
+    if (userId) {
+      socket.emit('join', userId);
+    }
+
+    // 2. Define what happens when the event is received
+    const handleWalletUpdate = () => {
+      console.log("💰 Wallet update signal received via Socket!");
+      fetchData(); // <-- Auto-refresh the data
+    };
+
+    // 3. Start Listening
+    socket.on('wallet_updated', handleWalletUpdate);
+
+    // 4. Cleanup when leaving screen
+    return () => {
+      socket.off('wallet_updated', handleWalletUpdate);
+    };
+    // ============================================================
+
   }, []);
 
   const fetchData = async () => {
@@ -96,7 +128,6 @@ export default function MyWalletScreen() {
         </View>
 
         {/* --- LOAN SECTION (Only for Casual & Manpower) --- */}
-        {/* Updated: Removed 'permanent' from this check */}
         {['casual', 'manpower'].includes(stats.userRole) && (
           <View className="bg-white p-6 rounded-[30px] shadow-md border border-gray-100 mb-8">
             <View className="flex-row items-center mb-4">
@@ -145,24 +176,21 @@ export default function MyWalletScreen() {
         )}
 
         {/* --- INFO CARD (Everyone EXCEPT Interns) --- */}
-        {/* Updated: Check if role is NOT intern */}
-        
-          <View className="bg-[#006B3F] p-5 rounded-[25px] flex-row items-center shadow-lg shadow-emerald-200">
-            <Ionicons name="information-circle" size={30} color="white" />
-            <View className="ml-4 flex-1">
-              <Text className="text-white font-bold text-sm">Note</Text>
-              <Text className="text-emerald-100 text-xs mt-1">
-                Missed meals are counted if you booked a meal but did not consume it before the time expired.
-              </Text>
-              <Text className="text-emerald-100 text-xs mt-1">
-                ඔබ ආහාරයක් වෙන් කර ඇති නමුත් නියමිත වේලාවට පෙර භාවිතා නොකළවිට, එය මගහැරුණු ආහාරයක් ලෙස ගණන් කරනු ලැබේ.
-              </Text>
-              <Text className="text-emerald-100 text-xs mt-1">
-                நீங்கள் உணவை முன்பதிவு செய்து, குறிப்பிட்ட நேரத்திற்குள் பயன்படுத்தவில்லை என்றால், அது தவறவிட்ட உணவாகக் கணக்கிடப்படும்.
-              </Text>
-            </View>
+        <View className="bg-[#006B3F] p-5 rounded-[25px] flex-row items-center shadow-lg shadow-emerald-200">
+          <Ionicons name="information-circle" size={30} color="white" />
+          <View className="ml-4 flex-1">
+            <Text className="text-white font-bold text-sm">Note</Text>
+            <Text className="text-emerald-100 text-xs mt-1">
+              Missed meals are counted if you booked a meal but did not consume it before the time expired.
+            </Text>
+            <Text className="text-emerald-100 text-xs mt-1">
+              ඔබ ආහාරයක් වෙන් කර ඇති නමුත් නියමිත වේලාවට පෙර භාවිතා නොකළවිට, එය මගහැරුණු ආහාරයක් ලෙස ගණන් කරනු ලැබේ.
+            </Text>
+            <Text className="text-emerald-100 text-xs mt-1">
+              நீங்கள் உணவை முன்பதிவு செய்து, குறிப்பிட்ட நேரத்திற்குள் பயன்படுத்தவில்லை என்றால், அது தவறவிட்ட உணவாகக் கணக்கிடப்படும்.
+            </Text>
           </View>
-       
+        </View>
 
         <View className="h-20" />
       </ScrollView>
