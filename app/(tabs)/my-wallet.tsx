@@ -141,7 +141,7 @@ export default function MyWalletScreen() {
             </View>
 
             <View className="items-center my-4">
-              <Text className="text-5xl font-black text-[#006B3F]">
+              <Text className="text-5xl p-3  font-black text-[#006B3F]">
                 <Text className="text-2xl text-gray-400 font-bold">LKR </Text>
                 {stats.loanAmount.toFixed(2)}
               </Text>

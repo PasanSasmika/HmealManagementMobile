@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://seniors-rogers-absorption-included.trycloudflare.com'; // Replace with your WiFi IP
+const API_URL = 'https://rico-buys-anaheim-probably.trycloudflare.com'; // Replace with your WiFi IP
 //https://hmealmanagementbackend.onrender.com
 export const loginUser = async (username: string, mobileNumber: string) => {
   try {
