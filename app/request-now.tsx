@@ -25,7 +25,7 @@ const MEAL_CONFIG = [
     title: "BREAKFAST",
     sin: "උදේ ආහාරය",
     tam: "காலை உணவு",
-    start: 6,
+    start: 8,
     end: 11,
   },
   {
@@ -34,7 +34,7 @@ const MEAL_CONFIG = [
     sin: "දවල් ආහාරය",
     tam: "மதிய உணவு",
     start: 12,
-    end: 24,
+    end: 16,
   },
   {
     id: "dinner",
@@ -42,7 +42,7 @@ const MEAL_CONFIG = [
     sin: "රාත්‍රී ආහාරය",
     tam: "இரவு உணவு",
     start: 18,
-    end: 24,
+    end: 22,
   },
 ];
 

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_URL = 'https://travis-kelkoo-rules-spare.trycloudflare.com'; // Replace with your WiFi IP
-//https://hmealmanagementbackend.onrender.com
+const API_URL = 'https://hmealmanagementbackend.onrender.com'; // Replace with your WiFi IP
+
 export const loginUser = async (username: string, mobileNumber: string) => {
   try {
     const response = await axios.post(`${API_URL}/api/auth/login`, {
