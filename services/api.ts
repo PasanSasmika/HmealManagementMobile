@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://hmealmanagementbackend.onrender.com'; // Replace with your WiFi IP
+const API_URL = 'https://scmsbe.voguesoftwares.com'; // Replace with your WiFi IP
 
 export const loginUser = async (username: string, mobileNumber: string) => {
   try {
