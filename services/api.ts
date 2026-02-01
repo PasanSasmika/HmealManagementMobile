@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://rico-buys-anaheim-probably.trycloudflare.com'; // Replace with your WiFi IP
+const API_URL = 'https://travis-kelkoo-rules-spare.trycloudflare.com'; // Replace with your WiFi IP
 //https://hmealmanagementbackend.onrender.com
 export const loginUser = async (username: string, mobileNumber: string) => {
   try {
@@ -95,7 +95,7 @@ export const getMealPrices = async (token: string) => {
 };
 
 export const processPaymentAction = async (
-  data: { bookingId: string, paymentType: string, amountPaid?: number }, 
+  data: { bookingId: string, paymentType: string, amountPaid?: number,deductExcessFromLoan?: boolean; }, 
   token: string
 ) => {
   try {
@@ -165,4 +165,18 @@ export const getWalletStats = async (token: string) => {
   } catch (error: any) {
     throw error.response?.data?.message || 'Failed to fetch wallet data';
   }
+};
+
+export const repayLoanAction = async (
+  data: { 
+    userId?: string; 
+    amount: number; 
+    notes?: string 
+  }, 
+  token: string
+) => {
+  const response = await axios.post(`${API_URL}/api/meal/repay-loan`, data, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return response.data;
 };
